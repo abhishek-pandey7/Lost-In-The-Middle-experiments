@@ -1,0 +1,61 @@
+# =============================================================================
+# LITM Benchmark Suite v4 — Configuration
+# =============================================================================
+# Model & Hardware
+model:
+  name: "Qwen/Qwen2.5-1.5B-Instruct"
+  quantization:
+    load_in_4bit: true
+    bnb_4bit_compute_dtype: "bfloat16"
+    bnb_4bit_use_double_quant: true
+    bnb_4bit_quant_type: "nf4"
+  device_map: "auto"
+  trust_remote_code: true
+
+# Generation parameters
+generation:
+  do_sample: false
+  temperature: null
+  top_p: null
+
+torch_dtype: "bfloat16"
+
+# Experiment counts
+experiments:
+  kv_retrieval:
+    n_examples: 50
+    n_keys_100: 100
+    n_keys_200: 200
+    positions: 9  # 0%, 12.5%, 25%, 37.5%, 50%, 62.5%, 75%, 87.5%, 100%
+
+  needle_haystack:
+    num_sentences: 500
+    n_examples: 30
+    depths: [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
+
+  multi_needle:
+    num_sentences: 300
+    n_examples: 30
+
+  fact_reasoning:
+    num_sentences: 300
+    n_examples: 30
+    depths: [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
+
+  semantic_distractors:
+    num_facts: 80
+    n_examples: 30
+    depths: [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
+
+  temporal_narrative:
+    num_events: 100
+    n_examples: 30
+    depths: [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
+
+  conversation_memory:
+    num_turns: 100
+    n_examples: 30
+    depths: [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
+
+# Output
+output_root: "./results"
