@@ -1,6 +1,7 @@
 """
-Experiment 4: Fact-Dependent Reasoning
-Math problem requiring a fact hidden at varying depths.
+Experiment 4: Fact-Dependent Reasoning (Simplified)
+Tests retrieval of a target fact hidden at varying depths.
+No arithmetic required — pure retrieval under cognitive load.
 """
 import logging
 import os
@@ -51,7 +52,7 @@ def run_fact_reasoning(
     out_dir: str,
     depths: List[float] = None,
 ) -> Dict[str, Any]:
-    """Run fact-dependent reasoning experiment."""
+    """Run simplified fact-dependent retrieval experiment."""
     ensure_dir(out_dir)
 
     if depths is None:
@@ -65,25 +66,25 @@ def run_fact_reasoning(
         preds = []
         for i in tqdm(range(num_examples), desc=f"Reason {depth:.1%}", leave=False):
             price = random.randint(2, 15)
-            qty = random.randint(3, 20)
-            discount = random.randint(5, 30)
-            answer = round(price * qty * (1 - discount / 100), 2)
-            fact = f"For this order, apples cost ${price}/kg with a {discount}% discount."
+            answer = float(price)
+            fact = f"For this order, apples cost ${price}/kg."
             doc = _make_doc(num_sentences, fact, depth)
             prompt = (
                 f"Use ONLY the document below.\n\n{doc}\n\n"
-                f"Question: I buy {qty} kg of apples. What is my total cost? "
-                f"Answer with only the dollar amount."
+                f"Question: What is the price per kg of apples? "
+                f"Answer with only the number."
             )
             ans = generate_text(
                 [{"role": "user", "content": prompt}],
                 model_name=model_name,
-                max_new_tokens=30,
+                max_new_tokens=20,
             )
             correct = numeric_match(ans, answer, tolerance=0.5)
+            nums = re.findall(r"[\d,]+\.?\d*", ans.replace(",", ""))
+            pred_val = float(nums[0]) if nums else -1.0
             preds.append({
                 "model_answer": ans,
-                "predicted": float(re.findall(r"[\d,]+\.?\d*", ans.replace(",", ""))[0]) if re.findall(r"[\d,]+\.?\d*", ans.replace(",", "")) else -1.0,
+                "predicted": pred_val,
                 "correct_answer": answer,
                 "correct": correct,
                 "depth": depth,
@@ -107,10 +108,10 @@ def run_fact_reasoning(
     plot_curve(
         depths,
         [results[d]["accuracy"] for d in depths],
-        f"Exp 4: Fact-Dependent Reasoning ({num_sentences} sentences)",
+        f"Exp 4: Fact-Dependent Retrieval ({num_sentences} sentences)",
         os.path.join(out_dir, "reason_curve.png"),
         xlabel="Depth in Document (0=start, 1=end)",
-        ylabel="Problem-Solving Accuracy",
+        ylabel="Retrieval Accuracy",
     )
 
     logger.info(f"[REASON] Time={(time.time()-start)/60:.1f} min")
