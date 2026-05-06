@@ -10,12 +10,17 @@ def exact_match_score(prediction: str, target: str) -> float:
 
 
 def numeric_match(prediction: str, target: float, tolerance: float = 0.5) -> float:
-    """Extract first number from prediction and compare with tolerance."""
+    """Check if any number in the prediction is within tolerance of target."""
     nums = re.findall(r"[\d,]+\.?\d*", prediction.replace(",", ""))
     if not nums:
         return 0.0
-    pred = float(nums[0])
-    return 1.0 if abs(pred - target) < tolerance else 0.0
+    for n in nums:
+        try:
+            if abs(float(n) - target) < tolerance:
+                return 1.0
+        except ValueError:
+            continue
+    return 0.0
 
 
 def compute_accuracy(predictions: List[Dict[str, Any]], key: str = "correct") -> float:
