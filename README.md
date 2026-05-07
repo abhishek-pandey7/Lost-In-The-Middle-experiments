@@ -19,14 +19,13 @@ tags:
 2. [Position Bias Index (PBI)](#2-position-bias-index-pbi)
 3. [Architecture Overview](#3-architecture-overview)
 4. [Experiment Descriptions](#4-experiment-descriptions)
-5. [Boundary Conditions: When LITM Disappears](#5-boundary-conditions-when-litm-disappears)
-6. [Quick Start](#6-quick-start)
-7. [Kaggle Usage](#7-kaggle-usage)
-8. [Output Structure](#8-output-structure)
-9. [Results & Graphs](#9-results--graphs)
-10. [Conclusions & Discussion](#10-conclusions--discussion)
-11. [Extending the Suite](#11-extending-the-suite)
-12. [Citation](#12-citation)
+5. [Quick Start](#5-quick-start)
+6. [Kaggle Usage](#6-kaggle-usage)
+7. [Output Structure](#7-output-structure)
+8. [Results & Graphs](#8-results--graphs)
+9. [Conclusions & Discussion](#9-conclusions--discussion)
+10. [Extending the Suite](#10-extending-the-suite)
+11. [Citation](#11-citation)
 
 ---
 
@@ -371,36 +370,36 @@ All countries are fictional and all codes are random. The model **cannot** answe
 
 ---
 
-### 4.6 Experiment 6: Temporal Narrative — Boundary Condition
+### 4.6 Experiment 6: Temporal Narrative
 
 **Files:** `experiments/temporal_narrative.py`, `kaggle/run_exp6_narrative.py`
 
 #### Motivation
-This experiment was designed to test whether **temporal ordering** (chronological vs. scrambled) affects position bias. However, it also serves as a critical **boundary condition** experiment: it reveals what happens when the target information is **lexically unique** within the document.
+Documents often have **inherent temporal structure** (chronologies, logs, histories). Does chronological ordering help or hurt retrieval? Does the model use temporal scaffolding, or does raw position dominate?
 
 #### Methodology
 1. Generate a timeline of `N` historical events (default: 100).
-   > Year 1000: the king issued a decree.
-   > Year 1001: a comet appeared in the sky.
-   > ...
-2. Insert a **target event** at a controlled depth:
-   > Year 1050: a golden statue was unveiled in the central square.
-3. Ask the model to identify the year of the target event.
-4. Score with tolerance (±5 years).
+   - 30 generic historical events (e.g., "the king issued a decree").
+   - 8 statue-unveiling distractors with different materials/locations (e.g., "a bronze statue was unveiled in the town square").
+2. Insert a **target event** at a controlled depth with a random secret code:
+   > "Year 1050: a golden statue was unveiled in the central square (CODE: XJ-7392)."
+3. The target is **one of 9 statue-unveiling events** — not lexically unique. The model must distinguish "golden statue + central square" from other statue events and extract the code.
+4. Ask the model to identify the code.
+   > "What is the secret code for the golden statue that was unveiled in the central square?"
+5. Score with exact-match against the secret code.
 
-#### Why This Experiment Is Different
-The target event — *"a golden statue was unveiled in the central square"* — is the **only mention of a "golden statue"** across all 100+ events. The model can locate it trivially via **lexical matching** (Ctrl+F behavior) rather than positional attention.
+#### Critical Design Choice
+The target is **semantically embedded** in a family of similar events. The model cannot locate it by simple keyword search ("statue" appears 9 times). It must use **positional attention** combined with **semantic discrimination**.
+
+#### Why This Task?
+- **Temporal structure** — events have meaningful ordering, not arbitrary placement.
+- **Semantic competition** — similar events compete for attention, testing true positional bias rather than lexical uniqueness.
+- **Models real-world timelines** — medical histories, legal case files, project logs with repeated event types.
 
 #### Expected Results
-- **Flat curve, PBI ≈ 0** — but NOT because temporal ordering mitigates bias.
-- Instead, **lexical uniqueness eliminates position dependence entirely**. The model ignores position and simply searches for the unique keyword.
-- This establishes a critical **boundary condition**: LITM effects are contingent upon targets that require positional attention, not just keyword search.
-
-#### Scientific Value
-This null result is as important as positive LITM findings. It proves that:
-1. Position bias is not an inevitable law of LLM attention — it depends on task structure.
-2. Benchmarks that use lexically unique targets (e.g., "find the only mention of X") will systematically underestimate position bias.
-3. Real-world retrieval tasks with semantically homogeneous documents (legal contracts, medical records with repeated terminology) are MORE vulnerable to position bias than tasks with unique keywords.
+- U-shaped curve, but possibly different from unstructured tasks.
+- If temporal ordering provides scaffolding, the curve may be weaker than needle-in-haystack.
+- If semantic density dominates, recency bias may collapse (similar to Exp 5).
 
 ---
 
@@ -433,62 +432,9 @@ Conversational AI must maintain coherence across **long dialogue histories**. Cr
 
 ---
 
-## 5. Boundary Conditions: When LITM Disappears
+## 5. Quick Start
 
-A central contribution of this suite is identifying **when the LITM effect does NOT appear**. These boundary conditions are as scientifically valuable as positive results.
-
-### 5.1 Boundary Condition 1: Lexical Uniqueness (Exp 6)
-
-When the target is the **only occurrence of a keyword** in the document, models achieve near-perfect retrieval regardless of depth. The model uses keyword search, not positional attention.
-
-| Depth | Accuracy | Interpretation |
-|-------|----------|---------------|
-| Start | ~100% | Trivial keyword match |
-| Middle | ~95–100% | Trivial keyword match |
-| End | ~100% | Trivial keyword match |
-| **PBI** | **≈ 0** | No position bias — target is findable by Ctrl+F |
-
-**Implication**: Benchmarks with unique keywords overestimate LLM robustness. Real documents have repeated terminology.
-
-### 5.2 Boundary Condition 2: Parametric Knowledge (Original Exp 5)
-
-When the answer is known from pretraining (e.g., "capital of France is Paris"), models answer from memory without reading the document.
-
-| Depth | Accuracy | Interpretation |
-|-------|----------|---------------|
-| All | ~100% | Model ignores document; answers from parametric memory |
-| **PBI** | **≈ 0** | No position bias — document is never consulted |
-
-**Fix**: Use fictional entities + random codes so the model MUST read.
-
-### 5.3 Boundary Condition 3: Task Difficulty Ceiling (Exp 4)
-
-When the task requires reasoning beyond the model's capability (e.g., math for a 1.5B model), accuracy collapses at ALL depths.
-
-| Depth | Accuracy | Interpretation |
-|-------|----------|---------------|
-| Start | ~20% | Model can't do the task |
-| Middle | ~15% | Model can't do the task |
-| End | ~40% | Model can't do the task |
-| **PBI** | **≈ 0** | No position bias — noise swamps signal |
-
-**Implication**: LITM is observable only when baseline (edge) accuracy is high enough to reveal a middle dip.
-
-### 5.4 Summary: Three Requirements for Observable LITM
-
-For position bias to be detectable, three conditions must hold simultaneously:
-
-| Condition | Violation Example | Consequence |
-|-----------|-------------------|-------------|
-| **Target must require document reading** | "Capital of France" (known from pretraining) | PBI = 0, flat 100% |
-| **Target must NOT be lexically unique** | "Golden statue" (only occurrence) | PBI = 0, flat 100% |
-| **Task must be within model competence** | Math for 1.5B model | PBI ≈ 0, near-chance |
-
----
-
-## 6. Quick Start
-
-### 6.1 Local Installation
+### 5.1 Local Installation
 
 ```bash
 # Clone the repository
@@ -499,7 +445,7 @@ cd litm-benchmark-suite-v4
 pip install -r requirements.txt
 ```
 
-### 6.2 Run All Experiments (Local)
+### 5.2 Run All Experiments (Local)
 
 ```bash
 python run_all.py \
@@ -508,7 +454,7 @@ python run_all.py \
     --n-examples 50
 ```
 
-### 6.3 Run Single Experiment (Local)
+### 5.3 Run Single Experiment (Local)
 
 ```bash
 python run_all.py \
@@ -517,7 +463,7 @@ python run_all.py \
     --output ./results
 ```
 
-### 6.4 Available CLI Flags
+### 5.4 Available CLI Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -532,9 +478,9 @@ python run_all.py \
 
 ---
 
-## 7. Kaggle Usage
+## 6. Kaggle Usage
 
-### 7.1 Run a Single Experiment (Recommended)
+### 6.1 Run a Single Experiment (Recommended)
 
 Each experiment is self-contained and takes ~15–25 minutes on a T4 GPU.
 
@@ -556,7 +502,27 @@ import shutil
 shutil.make_archive("/kaggle/working/litm_results", "zip", "/kaggle/working/litm_results")
 ```
 
-### 7.2 Run All Experiments Overnight
+### 6.2 Run Experiment 6 (Temporal Narrative)
+
+```python
+# Cell 1: Clone and install (fresh to get latest code)
+!rm -rf litm
+!git clone https://huggingface.co/abhshkp/litm-benchmark-suite-v4 litm
+%cd litm
+!pip install -q -r requirements.txt
+
+# Cell 2: Run Experiment 6
+!python kaggle/run_exp6_narrative.py \
+    --model Qwen/Qwen2.5-1.5B-Instruct \
+    --n-examples 30 \
+    --n-events 100
+
+# Cell 3: Zip and download
+import shutil
+shutil.make_archive("/kaggle/working/litm_results", "zip", "/kaggle/working/litm_results")
+```
+
+### 6.3 Run All Experiments Overnight
 
 ```python
 !python kaggle/run_all_kaggle.py \
@@ -565,7 +531,7 @@ shutil.make_archive("/kaggle/working/litm_results", "zip", "/kaggle/working/litm
     --n-examples 50
 ```
 
-### 7.3 Kaggle Scripts
+### 6.4 Kaggle Scripts
 
 | Script | Experiment | ~Time on T4 |
 |--------|-----------|-------------|
@@ -575,15 +541,15 @@ shutil.make_archive("/kaggle/working/litm_results", "zip", "/kaggle/working/litm
 | `kaggle/run_exp3_multi.py` | Multi-Needle | ~15 min |
 | `kaggle/run_exp4_reason.py` | Fact-Dependent Reasoning | ~20 min |
 | `kaggle/run_exp5_semantic.py` | Semantic Similarity Distractors | ~15 min |
-| `kaggle/run_exp6_narrative.py` | Temporal Narrative (Boundary) | ~15 min |
+| `kaggle/run_exp6_narrative.py` | Temporal Narrative | ~15 min |
 | `kaggle/run_exp7_conversation.py` | Conversation Memory | ~15 min |
-| `kaggle/run_all_kaggle.py` | **All 8 experiments** | ~2–2.5 hrs |
+| `kaggle/run_all_kaggle.py` | **All 7 experiments** | ~2–2.5 hrs |
 
 ---
 
-## 8. Output Structure
+## 7. Output Structure
 
-### 8.1 Per-Experiment Output
+### 7.1 Per-Experiment Output
 
 Each experiment produces a folder with the following files:
 
@@ -616,7 +582,7 @@ results/
 └── master_summary.json              # Aggregated results from all experiments
 ```
 
-### 8.2 JSONL Format
+### 7.2 JSONL Format
 
 Each `.jsonl` file contains one record per example:
 
@@ -625,7 +591,7 @@ Each `.jsonl` file contains one record per example:
 {"model_answer": "wrong-guess", "correct": 0.0, "value": "target-uuid", "gold_position": 50}
 ```
 
-### 8.3 Summary JSON Format
+### 7.3 Summary JSON Format
 
 ```json
 {
@@ -648,7 +614,7 @@ Each `.jsonl` file contains one record per example:
 }
 ```
 
-### 8.4 Plot Files
+### 7.4 Plot Files
 
 Each experiment saves a `.png` plot:
 - **Curve plots** (Experiments 1, 2, 4, 5, 6, 7): X-axis = normalized position, Y-axis = accuracy. Red curve with markers.
@@ -656,61 +622,59 @@ Each experiment saves a `.png` plot:
 
 ---
 
-## 9. Results & Graphs
+## 8. Results & Graphs
 
 > **[USER TO INSERT OUTPUT GRAPHS HERE]**
 
-### 9.1 Experiment 1A: KV Retrieval (100 keys)
+### 8.1 Experiment 1A: KV Retrieval (100 keys)
 
 *[Upload kv100_curve.png here]*
 
 **Observations:**
 
-### 9.2 Experiment 1B: KV Retrieval (200 keys)
+### 8.2 Experiment 1B: KV Retrieval (200 keys)
 
 *[Upload kv200_curve.png here]*
 
 **Observations:**
 
-### 9.3 Experiment 2: Needle in Haystack
+### 8.3 Experiment 2: Needle in Haystack
 
 *[Upload needle_curve.png here]*
 
 **Observations:**
 
-### 9.4 Experiment 3: Multi-Needle
+### 8.4 Experiment 3: Multi-Needle
 
 *[Upload multi_bar.png here]*
 
 **Observations:**
 
-### 9.5 Experiment 4: Fact-Dependent Reasoning
+### 8.5 Experiment 4: Fact-Dependent Reasoning
 
 *[Upload reason_curve.png here]*
 
 **Observations:**
 
-### 9.6 Experiment 5: Semantic Similarity Distractors
+### 8.6 Experiment 5: Semantic Similarity Distractors
 
 *[Upload semantic_curve.png here]*
 
 **Observations:**
 
-### 9.7 Experiment 6: Temporal Narrative — Boundary Condition (Lexical Uniqueness)
+### 8.7 Experiment 6: Temporal Narrative
 
 *[Upload narrative_curve.png here]*
 
 **Observations:**
 
-> **Expected**: Near-flat curve (~95–100% at all depths, PBI ≈ 0). The target event ("golden statue") is the only occurrence in the document, so the model locates it via keyword search regardless of position. This is a **boundary condition**, not a failure of the experiment. It establishes that position bias requires targets that are NOT lexically unique.
-
-### 9.8 Experiment 7: Conversation Memory
+### 8.8 Experiment 7: Conversation Memory
 
 *[Upload conversation_curve.png here]*
 
 **Observations:**
 
-### 9.9 Cross-Experiment PBI Comparison
+### 8.9 Cross-Experiment PBI Comparison
 
 | Experiment | PBI | Edge Accuracy | Middle Accuracy | Classification |
 |-----------|-----|--------------|-----------------|----------------|
@@ -720,24 +684,16 @@ Each experiment saves a `.png` plot:
 | Multi-Needle (middle) | | | | |
 | Fact Reasoning | | | | |
 | Semantic Distractors | | | | |
-| Temporal Narrative | **≈ 0** | **~97%** | **~93%** | **Boundary: Lexical Uniqueness** |
+| Temporal Narrative | | | | |
 | Conversation Memory | | | | |
-
-### 9.10 Boundary Conditions Summary
-
-| Boundary Condition | Experiment | Mechanism | Result |
-|-------------------|-----------|-----------|--------|
-| **Lexical Uniqueness** | Exp 6 | Model uses Ctrl+F keyword search | PBI ≈ 0, flat curve |
-| **Parametric Knowledge** | Exp 5 (before fix) | Model answers from memory | PBI ≈ 0, flat 100% |
-| **Task Difficulty** | Exp 4 (1.5B model) | Model can't do the task | PBI ≈ 0, near-chance |
 
 ---
 
-## 10. Conclusions & Discussion
+## 9. Conclusions & Discussion
 
 > **[USER TO WRITE CONCLUSIONS HERE]**
 
-### 10.1 Key Findings
+### 9.1 Key Findings
 
 *Summarize the main discoveries from your experiments:*
 
@@ -745,37 +701,29 @@ Each experiment saves a `.png` plot:
 2.
 3.
 
-### 10.2 Boundary Conditions Are Contributions
-
-A critical insight from this suite is that **null results are scientifically meaningful** when they establish boundary conditions:
-
-- **Exp 6 (Lexical Uniqueness)**: Proves LITM is not universal. When targets are findable by keyword search, position is irrelevant.
-- **Exp 4 (Task Ceiling)**: Proves LITM requires the model to be capable of the task. If accuracy is near-chance everywhere, no position signal can emerge.
-- **Exp 5 (Semantic Density)**: Reveals a NEW failure mode — "semantic recency collapse" — where dense semantic fields destroy the recency advantage.
-
-### 10.3 Implications
+### 9.2 Implications
 
 *What do these results mean for practitioners?*
 
-### 10.4 Limitations
+### 9.3 Limitations
 
 *What are the limitations of this study?*
 
-### 10.5 Future Work
+### 9.4 Future Work
 
 *What experiments or analyses would strengthen these findings?*
 
 ---
 
-## 11. Extending the Suite
+## 10. Extending the Suite
 
-### 11.1 Add a New Experiment
+### 10.1 Add a New Experiment
 
 1. Create `experiments/my_experiment.py` with a `run_my_experiment(model_name, ..., out_dir)` function.
 2. Create `kaggle/run_expN_myexperiment.py` that calls your function with Kaggle defaults.
 3. Import and add to `run_all.py` and `kaggle/run_all_kaggle.py`.
 
-### 11.2 Add a New Model
+### 10.2 Add a New Model
 
 Change `--model` to any HuggingFace causal LM:
 
@@ -786,7 +734,7 @@ python run_all.py --model Qwen/Qwen2.5-7B-Instruct
 
 The suite automatically handles 4-bit quantization via `bitsandbytes`.
 
-### 11.3 Adjust Scale
+### 10.3 Adjust Scale
 
 Increase context length by changing experiment parameters:
 
@@ -797,7 +745,7 @@ python kaggle/run_exp2_needle.py --n-sentences 1000 --n-examples 50
 
 ---
 
-## 12. Citation
+## 11. Citation
 
 If you use this benchmark suite in your research, please cite both the original paper and this suite:
 
