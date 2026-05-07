@@ -85,7 +85,7 @@ def main():
          lambda: run_temporal_narrative(model, 100, 30,
                                          os.path.join(out_root, "exp6_narrative"))),
         ("conversation", "Experiment 7: Conversation Memory",
-         lambda: run_conversation_memory(model, 100, 30,
+         lambda: run_conversation_memory(model, 300, 30,
                                           os.path.join(out_root, "exp7_conversation"))),
     ]
 
