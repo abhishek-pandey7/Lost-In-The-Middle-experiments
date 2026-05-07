@@ -1,13 +1,12 @@
 """
-Experiment 6: Temporal Narrative — Fixed Version
-Target event is semantically embedded among similar distractor events.
-A random secret code is attached to the target; the model must distinguish
-the target from similar statue-unveiling events and extract the code.
+Experiment 6: Temporal Narrative — Complete Redesign
+500-event research log with 3-way overlapping entity disambiguation.
+Target requires finding a unique scientist+compound+subject combination among
+many partial matches, forcing full-context positional attention.
 """
 import logging
 import os
 import random
-import re
 import time
 from typing import List, Dict, Any
 
@@ -20,84 +19,68 @@ from src.utils import ensure_dir, save_jsonl, save_json
 
 logger = logging.getLogger(__name__)
 
-# Generic historical events (NOT about statues)
-EVENTS_POOL = [
-    "the king issued a decree",
-    "a comet appeared in the sky",
-    "the bridge was completed",
-    "a treaty was signed",
-    "the harvest festival began",
-    "a stranger arrived at the gates",
-    "the library burned down",
-    "a new star was discovered",
-    "the river flooded the town",
-    "the army marched north",
-    "a peace envoy was sent",
-    "the market was opened",
-    "a plague swept the city",
-    "the old temple was restored",
-    "a fleet set sail for distant lands",
-    "the academy admitted its first students",
-    "a rebellion broke out in the east",
-    "the queen gave birth to twins",
-    "a dragon was spotted in the mountains",
-    "the great bell tolled for the first time",
-    "the northern wall was reinforced",
-    "a foreign ambassador visited the court",
-    "the mines collapsed unexpectedly",
-    "a famous painter completed a masterpiece",
-    "the cathedral's dome was finished",
-    "a new trade route was established",
-    "the royal gardens were opened to the public",
-    "a solar eclipse darkened the kingdom",
-    "the harbor was expanded",
-    "a legendary sword was forged",
+# Entity pools — smaller pools = more overlap = harder disambiguation
+SCIENTISTS = [
+    "Dr. Vance", "Dr. Chen", "Dr. Patel", "Dr. Okonkwo", "Dr. Sato",
+    "Dr. Müller", "Dr. Silva", "Dr. Kim", "Dr. Ivanov", "Dr. Okafor",
+    "Dr. Nakamura", "Dr. Andersson", "Dr. Rossi", "Dr. Singh", "Dr. Larsson",
 ]
 
-# Statue-unveiling distractors — same semantic family as target
-STATUE_EVENTS = [
-    "a bronze statue was unveiled in the town square",
-    "a marble statue was unveiled in the village square",
-    "a silver statue was unveiled in the market square",
-    "an iron statue was unveiled in the castle courtyard",
-    "a crystal statue was unveiled in the palace hall",
-    "a wooden statue was unveiled in the forest clearing",
-    "a stone statue was unveiled in the riverside park",
-    "a copper statue was unveiled in the guild district",
+COMPOUNDS = [
+    "Zylorium", "Kaptosine", "Vexamide", "Novaline", "Triptorex",
+    "Calmantide", "Fluxorol", "Bexatrine", "Yondril", "Pentacil",
+    "Luminex", "Dorantin", "Quorafin", "Moxilane", "Zephiron",
+    "Nexapril", "Tovacil", "Rexomine", "Solvatrix", "Kryonex",
+    "Alphadine", "Betanoril", "Gammaxon", "Deltazol", "Epsilamine",
 ]
+
+SUBJECTS = [f"Subject-{i:02d}" for i in range(1, 21)]
 
 
 def _generate_code():
-    """Generate a random secret code like XJ-7392."""
-    return f"{random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ')}{random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ')}-{random.randint(1000, 9999)}"
+    """Generate random alphanumeric code."""
+    return f"{random.choice('ABCDEFGHJKLMNPQRSTUVWXYZ')}{random.choice('ABCDEFGHJKLMNPQRSTUVWXYZ')}{random.randint(1000, 9999)}"
 
 
-def _make_timeline(num_events: int, target_event: str, target_code: str, ratio: float) -> str:
-    """
-    Build a timeline where the target is one of many statue-unveiling events.
-    The model must distinguish the specific target (golden statue, central square)
-    from similar statue-unveiling distractors to extract the code.
-    """
-    # Fill with generic non-statue events
-    events = random.sample(EVENTS_POOL, min(num_events - len(STATUE_EVENTS) - 1, len(EVENTS_POOL)))
-    while len(events) < num_events - len(STATUE_EVENTS) - 1:
-        events.append("the people gathered for a ceremony")
+def _make_research_log(num_events: int, target_scientist: str, target_compound: str,
+                       target_subject: str, target_code: str, ratio: float) -> str:
+    """Build research log where target is hidden among many partial matches."""
+    entries = []
+    used_triples = set()
 
-    # Add all statue events (including target) so target is NOT lexically unique
-    all_statue_events = STATUE_EVENTS + [target_event]
-    random.shuffle(all_statue_events)
-    events.extend(all_statue_events)
+    # Build pool of unique triples, ensuring overlaps with target entities
+    # We want multiple entries sharing each target entity
+    while len(entries) < num_events - 1:
+        s = random.choice(SCIENTISTS)
+        c = random.choice(COMPOUNDS)
+        sub = random.choice(SUBJECTS)
+        triple = (s, c, sub)
+        if triple in used_triples:
+            continue
+        used_triples.add(triple)
+
+        # Bias toward creating partial overlaps with target
+        # This ensures target entities appear frequently
+        if s == target_scientist or c == target_compound or sub == target_subject:
+            if random.random() < 0.7:  # 70% chance to keep overlap entries
+                code = _generate_code()
+                entries.append((s, c, sub, code))
+        else:
+            code = _generate_code()
+            entries.append((s, c, sub, code))
+
+    # Add target entry
+    entries.insert(int(ratio * len(entries)), (target_scientist, target_compound, target_subject, target_code))
 
     # Shuffle everything
-    random.shuffle(events)
+    random.shuffle(entries)
 
-    # Place target at desired position by replacing the event at that index
-    idx = int(ratio * len(events))
-    # Remove target if it happens to be elsewhere, then insert at idx
-    events = [e for e in events if e != target_event]
-    events.insert(idx, target_event)
+    # Format as chronological log
+    lines = []
+    for i, (s, c, sub, code) in enumerate(entries):
+        lines.append(f"Day {i+1}: {s} tested {c} on {sub}. Result: {code}.")
 
-    return "\n".join(f"Year {1000 + i}: {e}." for i, e in enumerate(events))
+    return "\n".join(lines)
 
 
 def run_temporal_narrative(
@@ -107,7 +90,7 @@ def run_temporal_narrative(
     out_dir: str,
     depths: List[float] = None,
 ) -> Dict[str, Any]:
-    """Run temporal narrative experiment with embedded similar distractors."""
+    """Run 500-event research log with 3-way entity disambiguation."""
     ensure_dir(out_dir)
 
     if depths is None:
@@ -120,28 +103,34 @@ def run_temporal_narrative(
         logger.info(f"[NARRATIVE] Depth {depth:.1%}")
         preds = []
         for i in tqdm(range(num_examples), desc=f"Narrative {depth:.1%}", leave=False):
+            target_scientist = random.choice(SCIENTISTS)
+            target_compound = random.choice(COMPOUNDS)
+            target_subject = random.choice(SUBJECTS)
             target_code = _generate_code()
-            target_event = f"a golden statue was unveiled in the central square (CODE: {target_code})"
-            timeline = _make_timeline(num_events, target_event, target_code, depth)
+
+            log = _make_research_log(
+                num_events, target_scientist, target_compound,
+                target_subject, target_code, depth
+            )
 
             prompt = (
-                f"Read the following timeline of historical events carefully.\n\n"
-                f"{timeline}\n\n"
-                f"Question: What is the secret code for the golden statue that was unveiled "
-                f"in the central square? Answer with only the code."
+                f"Below is a chronological research log with {num_events} experiment entries.\n\n"
+                f"{log}\n\n"
+                f"Question: What was the result code when {target_scientist} tested "
+                f"{target_compound} on {target_subject}? "
+                f"Answer with only the code (format: XX-NNNN)."
             )
+
             ans = generate_text(
                 [{"role": "user", "content": prompt}],
                 model_name=model_name,
                 max_new_tokens=15,
             )
             correct = exact_match_score(ans, target_code)
-            expected_year = 1000 + int(depth * num_events)
             preds.append({
                 "model_answer": ans,
                 "correct": correct,
-                "expected_year": expected_year,
-                "target_code": target_code,
+                "expected_code": target_code,
                 "depth": depth,
             })
 
@@ -165,7 +154,7 @@ def run_temporal_narrative(
         [results[d]["accuracy"] for d in depths],
         f"Exp 6: Temporal Narrative ({num_events} events)",
         os.path.join(out_dir, "narrative_curve.png"),
-        xlabel="Depth in Timeline (0=start, 1=end)",
+        xlabel="Depth in Document (0=start, 1=end)",
     )
 
     logger.info(f"[NARRATIVE] Time={(time.time()-start)/60:.1f} min")
