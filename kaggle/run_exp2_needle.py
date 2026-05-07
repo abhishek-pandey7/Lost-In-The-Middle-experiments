@@ -26,7 +26,8 @@ def parse_args():
     p = argparse.ArgumentParser(description="LITM v4 - Exp 2: Needle in Haystack")
     p.add_argument("--model", default="Qwen/Qwen2.5-1.5B-Instruct")
     p.add_argument("--n-examples", type=int, default=30)
-    p.add_argument("--n-sentences", type=int, default=500)
+    p.add_argument("--n-sentences", type=int, default=2000,
+                   help="Number of sentences in haystack (default 2000 to stress LITM)")
     p.add_argument("--output", default="/kaggle/working/litm_results")
     return p.parse_args()
 
