@@ -1,6 +1,8 @@
 """
 Experiment 5: Semantic Similarity Distractors
-Gold fact ("capital of France is Paris") among semantically similar facts.
+Gold fact among semantically similar facts.
+CRITICAL FIX: Uses random secret codes for fictional entities so the model
+CANNOT answer from parametric knowledge — it MUST read the document.
 """
 import logging
 import os
@@ -17,61 +19,80 @@ from src.utils import ensure_dir, save_jsonl, save_json
 
 logger = logging.getLogger(__name__)
 
+# Fictional country names (guaranteed unseen in pretraining)
+FICTIONAL_COUNTRIES = [
+    "Xyloria", "Freloria", "Zenthar", "Vortis", "Kandor", "Eldoria",
+    "Thaloria", "Nyxon", "Pyraxis", "Oblivion", "Cresthaven", "Velmora",
+    "Drakonia", "Sylvaris", "Morndell", "Aetheron", "Lumaria", "Obsidius",
+    "Quorin", "Tarvos", "Yendell", "Braxil", "Krynn", "Solvaris",
+    "Mordant", "Vexilon", "Nymbria", "Oryndor", "Phaedra", "Rivenmoor",
+]
+
+# Templates that create semantically similar distractors
 TEMPLATES = [
-    "The capital of {country} is {city}.",
+    "The capital of {country} is {code}.",
     "The population of {country} is approximately {num} million.",
     "The official language of {country} is {lang}.",
     "The currency of {country} is the {currency}.",
     "The largest city in {country} is {city}.",
 ]
 
-COUNTRIES = [
-    "Germany", "Spain", "Italy", "Brazil", "Argentina", "Canada",
-    "Australia", "Japan", "China", "India", "Russia", "Egypt",
-    "Turkey", "Mexico", "South Korea", "Thailand", "Vietnam",
-    "Poland", "Sweden", "Norway", "Denmark", "Finland", "Greece",
-    "Portugal", "Ireland", "Austria", "Switzerland", "Belgium",
-    "Netherlands", "Czech Republic", "Hungary", "Romania",
-]
+# Pools for distractor generation
+LANGS = ["Xylorian", "Frelorish", "Zentharan", "Vortian", "Kandoric",
+         "Eldorian", "Thalorian", "Nyxonian", "Pyraxian", "Oblivian",
+         "Cresthavic", "Velmoran", "Drakonic", "Sylvarian", "Morndelic"]
 
-CITIES = [
-    "Berlin", "Madrid", "Rome", "Brasilia", "Buenos Aires", "Ottawa",
-    "Canberra", "Tokyo", "Beijing", "New Delhi", "Moscow", "Cairo",
-    "Ankara", "Mexico City", "Seoul", "Bangkok", "Hanoi",
-    "Warsaw", "Stockholm", "Oslo", "Copenhagen", "Helsinki", "Athens",
-    "Lisbon", "Dublin", "Vienna", "Bern", "Brussels",
-    "Amsterdam", "Prague", "Budapest", "Bucharest",
-]
-
-LANGS = [
-    "German", "Spanish", "Italian", "Portuguese", "French",
-    "English", "Japanese", "Mandarin", "Hindi", "Russian",
-    "Arabic", "Turkish", "Korean", "Thai", "Vietnamese",
-    "Polish", "Swedish", "Norwegian", "Danish", "Finnish",
-    "Greek", "Irish", "Dutch", "Czech", "Hungarian", "Romanian",
-]
-
-CURRENCIES = [
-    "Euro", "Peso", "Real", "Dollar", "Yen", "Yuan", "Rupee",
-    "Ruble", "Pound", "Won", "Baht", "Dong", "Zloty",
-    "Krone", "Krona", "Forint", "Leu", "Franc",
-]
+CURRENCIES = ["Xylor", "Frelor", "Zenthar", "Vort", "Kandor",
+              "Eldor", "Thalor", "Nyx", "Pyrax", "Obliv",
+              "Crest", "Velm", "Drak", "Sylv", "Morn"]
 
 
-def _make_doc(num_facts: int, gold_fact: str, ratio: float) -> str:
+def _generate_code():
+    """Generate a random secret code like PARIS-4281 or ZENTH-7392."""
+    return f"{random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ')}{random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ')}{random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ')}{random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ')}-{random.randint(1000, 9999)}"
+
+
+def _make_doc(num_facts: int, gold_country: str, gold_code: str, ratio: float) -> str:
+    """
+    Generate a document with semantically similar distractor facts,
+    plus the gold fact at the specified position.
+    All countries are fictional and all codes are random — no parametric
+    knowledge can answer this.
+    """
+    # Select distractor countries (different from gold)
+    available = [c for c in FICTIONAL_COUNTRIES if c != gold_country]
+    distractor_countries = random.sample(available, min(num_facts, len(available)))
+    while len(distractor_countries) < num_facts:
+        distractor_countries.append(random.choice(available))
+
     facts = []
-    for _ in range(num_facts):
+    for i, country in enumerate(distractor_countries[:num_facts]):
         t = random.choice(TEMPLATES)
-        fact = t.format(
-            country=random.choice(COUNTRIES),
-            city=random.choice(CITIES),
-            num=random.randint(10, 1400),
-            lang=random.choice(LANGS),
-            currency=random.choice(CURRENCIES),
-        )
+        if "capital" in t or "largest city" in t:
+            fact = t.format(country=country, code=_generate_code(), city=_generate_code(),
+                            num=random.randint(10, 1400), lang=random.choice(LANGS),
+                            currency=random.choice(CURRENCIES))
+        elif "population" in t:
+            fact = t.format(country=country, code=_generate_code(), city=_generate_code(),
+                            num=random.randint(10, 1400), lang=random.choice(LANGS),
+                            currency=random.choice(CURRENCIES))
+        elif "language" in t:
+            fact = t.format(country=country, code=_generate_code(), city=_generate_code(),
+                            num=random.randint(10, 1400), lang=random.choice(LANGS),
+                            currency=random.choice(CURRENCIES))
+        elif "currency" in t:
+            fact = t.format(country=country, code=_generate_code(), city=_generate_code(),
+                            num=random.randint(10, 1400), lang=random.choice(LANGS),
+                            currency=random.choice(CURRENCIES))
+        else:
+            fact = t.format(country=country, code=_generate_code(), city=_generate_code(),
+                            num=random.randint(10, 1400), lang=random.choice(LANGS),
+                            currency=random.choice(CURRENCIES))
         facts.append(fact)
 
+    # Insert gold fact at target position
     idx = int(ratio * len(facts))
+    gold_fact = f"The capital of {gold_country} is {gold_code}."
     facts.insert(idx, gold_fact)
     return "\n".join(f"{i+1}. {f}" for i, f in enumerate(facts))
 
@@ -83,7 +104,7 @@ def run_semantic_distractors(
     out_dir: str,
     depths: List[float] = None,
 ) -> Dict[str, Any]:
-    """Run semantic distractor experiment."""
+    """Run semantic distractor experiment with random secret codes."""
     ensure_dir(out_dir)
 
     if depths is None:
@@ -96,21 +117,28 @@ def run_semantic_distractors(
         logger.info(f"[SEMANTIC] Depth {depth:.1%}")
         preds = []
         for i in tqdm(range(num_examples), desc=f"Semantic {depth:.1%}", leave=False):
-            gold = "The capital of France is Paris."
-            doc = _make_doc(num_facts, gold, depth)
+            # Pick a random fictional country as the target
+            gold_country = random.choice(FICTIONAL_COUNTRIES)
+            gold_code = _generate_code()
+
+            doc = _make_doc(num_facts, gold_country, gold_code, depth)
             prompt = (
                 f"Read the following list of facts and answer the question.\n\n{doc}\n\n"
-                f"Question: What is the capital of France? Answer with only the city name."
+                f"Question: What is the capital of {gold_country}? "
+                f"Answer with only the secret code."
             )
             ans = generate_text(
                 [{"role": "user", "content": prompt}],
                 model_name=model_name,
                 max_new_tokens=20,
             )
-            correct = exact_match_score(ans, "paris")
+            # Score against the exact secret code (case-insensitive)
+            correct = exact_match_score(ans, gold_code)
             preds.append({
                 "model_answer": ans,
                 "correct": correct,
+                "gold_country": gold_country,
+                "gold_code": gold_code,
                 "depth": depth,
             })
 
