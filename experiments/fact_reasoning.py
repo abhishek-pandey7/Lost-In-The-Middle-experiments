@@ -1,7 +1,8 @@
 """
-Experiment 4: Fact-Dependent Reasoning (Simplified)
-Tests retrieval of a target fact hidden at varying depths.
-No arithmetic required — pure retrieval under cognitive load.
+Experiment 4: Fact-Dependent Reasoning
+Math problem requiring retrieval of a buried fact.
+CRITICAL FIX: Uses fictional products and random prices so the model
+CANNOT answer from parametric knowledge — it MUST read the document.
 """
 import logging
 import os
@@ -37,6 +38,14 @@ DISTRACTORS = [
     "Satellites show drought vegetation.",
 ]
 
+# Fictional product names — never seen in pretraining
+FICTIONAL_PRODUCTS = [
+    "Zylor apples", "Krynn berries", "Xylor pears", "Freloria grapes",
+    "Vortis melons", "Zenthar plums", "Kandor peaches", "Eldoria cherries",
+    "Thaloria figs", "Nyxon limes", "Pyraxis kiwis", "Oblivion mangoes",
+    "Cresthaven papayas", "Velmora guavas", "Drakonia dates",
+]
+
 
 def _make_doc(n: int, fact: str, ratio: float) -> str:
     sents = [random.choice(DISTRACTORS) + f" [Doc {i+1}]" for i in range(n)]
@@ -52,7 +61,7 @@ def run_fact_reasoning(
     out_dir: str,
     depths: List[float] = None,
 ) -> Dict[str, Any]:
-    """Run simplified fact-dependent retrieval experiment."""
+    """Run fact-dependent reasoning experiment with fictional products."""
     ensure_dir(out_dir)
 
     if depths is None:
@@ -64,29 +73,38 @@ def run_fact_reasoning(
     for depth in depths:
         logger.info(f"[REASON] Depth {depth:.1%}")
         preds = []
-        for i in tqdm(range(num_examples), desc=f"Reason {depth:.1%}", leave=False):
-            price = random.randint(2, 15)
-            answer = float(price)
-            fact = f"For this order, apples cost ${price}/kg."
+        for _ in tqdm(range(num_examples), desc=f"Reason {depth:.1%}", leave=False):
+            # Random fictional product with random price (50-500, clearly fictional)
+            product = random.choice(FICTIONAL_PRODUCTS)
+            price = random.randint(50, 500)
+            qty = random.randint(3, 20)
+            answer = price * qty  # Simple integer multiplication
+
+            fact = f"For this order, {product} cost ${price}/kg."
             doc = _make_doc(num_sentences, fact, depth)
             prompt = (
-                f"Use ONLY the document below.\n\n{doc}\n\n"
-                f"Question: What is the price per kg of apples? "
-                f"Answer with only the number."
+                f"Use ONLY the document below. Do not use any outside knowledge.\n\n"
+                f"{doc}\n\n"
+                f"According to the document, I buy {qty} kg of {product}. "
+                f"What is my total cost? Answer with only the number (no dollar sign, no units)."
             )
             ans = generate_text(
                 [{"role": "user", "content": prompt}],
                 model_name=model_name,
                 max_new_tokens=20,
             )
-            correct = numeric_match(ans, answer, tolerance=0.5)
-            nums = re.findall(r"[\d,]+\.?\d*", ans.replace(",", ""))
-            pred_val = float(nums[0]) if nums else -1.0
+            # Extract first integer from answer
+            nums = re.findall(r"\b\d+\b", ans.replace(",", ""))
+            pred = int(nums[0]) if nums else -1
+            correct = 1.0 if pred == answer else 0.0
             preds.append({
                 "model_answer": ans,
-                "predicted": pred_val,
+                "predicted": pred,
                 "correct_answer": answer,
                 "correct": correct,
+                "price": price,
+                "quantity": qty,
+                "product": product,
                 "depth": depth,
             })
 
@@ -108,10 +126,10 @@ def run_fact_reasoning(
     plot_curve(
         depths,
         [results[d]["accuracy"] for d in depths],
-        f"Exp 4: Fact-Dependent Retrieval ({num_sentences} sentences)",
+        f"Exp 4: Fact-Dependent Reasoning ({num_sentences} sentences)",
         os.path.join(out_dir, "reason_curve.png"),
         xlabel="Depth in Document (0=start, 1=end)",
-        ylabel="Retrieval Accuracy",
+        ylabel="Problem-Solving Accuracy",
     )
 
     logger.info(f"[REASON] Time={(time.time()-start)/60:.1f} min")
