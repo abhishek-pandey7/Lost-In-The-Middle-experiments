@@ -1,6 +1,8 @@
 """
 Experiment 7: Conversation Memory
 Critical instruction buried in long chat history.
+FIXED: 300-turn conversations with decoy instructions to prevent trivial keyword search.
+Multiple "remember" instructions appear; the model must find the correct one.
 """
 import logging
 import os
@@ -38,6 +40,11 @@ USER_MSGS = [
     "What is artificial intelligence?",
     "How do I learn a new language?",
     "What are black holes?",
+    "What is dark matter?",
+    "How do electric cars work?",
+    "What is machine learning?",
+    "Explain DNA replication.",
+    "How does 3D printing work?",
 ]
 
 ASSISTANT_MSGS = [
@@ -61,18 +68,58 @@ ASSISTANT_MSGS = [
     "AI enables machines to perform tasks requiring human intelligence.",
     "Practice daily, immerse yourself, and use spaced repetition.",
     "Black holes have gravitational fields so strong nothing escapes.",
+    "Dark matter does not emit light but exerts gravitational pull.",
+    "Electric cars use battery packs to power electric motors.",
+    "Machine learning is a subset of AI focused on pattern recognition.",
+    "DNA replication ensures genetic information is copied accurately.",
+    "3D printing builds objects layer by layer from digital models.",
+]
+
+# Decoy instructions that use the same pattern but different values
+DECOY_INSTRUCTIONS = [
+    "Please remember my backup phone number is {}. This is important.",
+    "Please remember my work ID is {}. This is important.",
+    "Please remember my emergency contact is {}. This is important.",
+    "Please remember my security question answer is {}. This is important.",
+    "Please remember my alternate email is {}. This is important.",
+    "Please remember my locker combination is {}. This is important.",
+    "Please remember my membership ID is {}. This is important.",
+    "Please remember my API key is {}. This is important.",
+    "Please remember my passport number is {}. This is important.",
+    "Please remember my account PIN is {}. This is important.",
 ]
 
 
-def _make_conversation(num_turns: int, instruction: str, ratio: float) -> str:
+def _make_conversation(num_turns: int, target_instruction: str, ratio: float, num_decoys: int = 8) -> str:
+    """Build conversation with decoy instructions and target at specified depth."""
     convo = []
+    
+    # Generate base turns
     for i in range(num_turns):
         convo.append(f"User: {random.choice(USER_MSGS)}")
         convo.append(f"Assistant: {random.choice(ASSISTANT_MSGS)}")
-
-    idx = int(ratio * len(convo))
-    convo.insert(idx, f"User: {instruction}")
-    convo.insert(idx + 1, "Assistant: I will remember that.")
+    
+    # Insert decoy instructions at random positions (avoid target position)
+    target_idx = int(ratio * len(convo))
+    decoy_positions = set()
+    for _ in range(num_decoys):
+        pos = random.randint(0, len(convo) - 1)
+        # Don't place decoy right at target position
+        if abs(pos - target_idx) > 5:
+            decoy_positions.add(pos)
+    
+    decoy_values = []
+    for pos in sorted(decoy_positions):
+        tmpl = random.choice(DECOY_INSTRUCTIONS)
+        val = f"DECOY-{random.randint(1000, 9999)}"
+        decoy_values.append(val)
+        convo.insert(pos, f"User: {tmpl.format(val)}")
+        convo.insert(pos + 1, "Assistant: I will remember that.")
+    
+    # Insert target instruction
+    convo.insert(target_idx, f"User: {target_instruction}")
+    convo.insert(target_idx + 1, "Assistant: I will remember that.")
+    
     return "\n\n".join(convo)
 
 
@@ -83,7 +130,7 @@ def run_conversation_memory(
     out_dir: str,
     depths: List[float] = None,
 ) -> Dict[str, Any]:
-    """Run conversation memory experiment."""
+    """Run conversation memory experiment with decoy instructions."""
     ensure_dir(out_dir)
 
     if depths is None:
@@ -96,16 +143,17 @@ def run_conversation_memory(
         logger.info(f"[CONVERSATION] Depth {depth:.1%}")
         preds = []
         for i in tqdm(range(num_examples), desc=f"Conversation {depth:.1%}", leave=False):
-            secret = f"MYFAVCOLOR-{i:03d}"
-            instruction = (
-                f"Please always remember that my favorite color is {secret}. "
-                f"This is very important."
+            secret = f"SEC-{random.randint(10000, 99999)}"
+            target_instruction = (
+                f"Please always remember that my access code is {secret}. "
+                f"This is extremely important for future questions."
             )
-            convo = _make_conversation(num_turns, instruction, depth)
+            convo = _make_conversation(num_turns, target_instruction, depth, num_decoys=8)
             prompt = (
-                f"Here is our conversation history:\n\n{convo}\n\n"
-                f"Based on our conversation, what is my favorite color? "
-                f"Answer with only the color code."
+                f"Here is our conversation history. Multiple instructions were given. "
+                f"Find the one that mentions my access code and answer with only that code.\n\n"
+                f"{convo}\n\n"
+                f"What is my access code?"
             )
             ans = generate_text(
                 [{"role": "user", "content": prompt}],
