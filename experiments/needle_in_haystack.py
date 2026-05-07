@@ -1,6 +1,8 @@
 """
 Experiment 2: Needle in Haystack (text)
 Tests retrieval of a secret code hidden at varying depths in filler text.
+FIXED: Increased default context to 1500 sentences to stress 1.5B model attention.
+Also adds decoy codes to prevent trivial keyword-only retrieval.
 """
 import logging
 import os
@@ -35,15 +37,50 @@ FILLERS = [
     "Classical composition follows harmonic rules.",
     "Urban planning addresses zoning and transport.",
     "Photosynthesis converts CO2 into glucose.",
-    "The Fibonacci sequence appears in nature.",
+    "The Fibonacci sequence appears in nature.
     "GPS uses triangulation from satellites.",
     "Cryptography secures digital communication.",
+    "Aerodynamics explains lift on aircraft wings.",
+    "Meteorologists track pressure systems globally.",
+    "The Rosetta Stone enabled hieroglyph translation.",
+    "Bioluminescence occurs in deep ocean species.",
+    "Microprocessors revolutionized personal computing.",
+    "Tectonic plates shift gradually over millennia.",
+    "The printing press spread knowledge across Europe.",
+    "Quantum entanglement defies classical intuition.",
+    "Archaeologists excavate buried ancient settlements.",
+    "Photosensors detect minute light variations.",
+]
+
+# Decoy sentences with codes that use similar patterns
+DECOY_TEMPLATES = [
+    "The transaction was logged with code TX-{code}.",
+    "The batch identifier is BC-{code}.",
+    "Session recorded under SC-{code}.",
+    "Access granted via AC-{code}.",
+    "Error logged as EC-{code}.",
+    "Debug trace shows DC-{code}.",
+    "Network packet tagged NC-{code}.",
+    "User authenticated with UC-{code}.",
+    "System heartbeat code SY-{code}.",
+    "Database query ID DB-{code}.",
 ]
 
 
-def _make_haystack(n: int) -> str:
-    """Generate n sentences of filler text."""
-    return " ".join(random.choice(FILLERS) + f" [{i+1}]." for i in range(n))
+def _make_haystack(n: int, num_decoys: int = 15) -> str:
+    """Generate n sentences of filler text with decoy codes scattered throughout."""
+    sents = []
+    for i in range(n):
+        if random.random() < (num_decoys / n) and num_decoys > 0:
+            # Insert a decoy sentence instead of filler
+            template = random.choice(DECOY_TEMPLATES)
+            code = f"{random.randint(1000, 9999)}"
+            sents.append(template.format(code=code))
+            num_decoys -= 1
+        else:
+            sents.append(random.choice(FILLERS) + f" [{i+1}].")
+    random.shuffle(sents)
+    return " ".join(sents)
 
 
 def _insert_needle(text: str, needle: str, ratio: float) -> str:
@@ -61,7 +98,7 @@ def run_needle_in_haystack(
     out_dir: str,
     depths: List[float] = None,
 ) -> Dict[str, Any]:
-    """Run needle-in-haystack experiment."""
+    """Run needle-in-haystack experiment with decoy codes."""
     ensure_dir(out_dir)
 
     if depths is None:
@@ -74,24 +111,27 @@ def run_needle_in_haystack(
         logger.info(f"[NEEDLE] Depth {depth:.1%}")
         preds = []
         for i in tqdm(range(num_examples), desc=f"Needle {depth:.1%}", leave=False):
-            filler = _make_haystack(num_sentences)
-            code = f"SECRET-{i:04d}"
-            needle = f"The secret code is {code}."
+            filler = _make_haystack(num_sentences, num_decoys=15)
+            code = f"{random.randint(10000, 99999)}"
+            # Target uses a different prefix than decoys to make it distinguishable
+            # but the model must find it among many codes
+            needle = f"The classified identifier is CL-{code}."
             text = _insert_needle(filler, needle, depth)
             prompt = (
-                f"Read the text and find the secret code.\n\n{text}\n\n"
-                f"What is the secret code? Answer with only the code."
+                f"Read the text carefully. Multiple codes appear, but only one is "
+                f"the classified identifier. Find it.\n\n{text}\n\n"
+                f"What is the classified identifier? Answer with only the full code (including CL- prefix)."
             )
             ans = generate_text(
                 [{"role": "user", "content": prompt}],
                 model_name=model_name,
                 max_new_tokens=20,
             )
-            correct = exact_match_score(ans, code)
+            correct = exact_match_score(ans, f"CL-{code}")
             preds.append({
                 "model_answer": ans,
                 "correct": correct,
-                "secret": code,
+                "secret": f"CL-{code}",
                 "depth": depth,
             })
 
