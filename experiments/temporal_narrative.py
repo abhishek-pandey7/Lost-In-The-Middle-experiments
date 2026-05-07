@@ -1,8 +1,10 @@
 """
-Experiment 6: Temporal Narrative — Complete Redesign
+Experiment 6: Temporal Narrative — Complete Redesign v2
 500-event research log with 3-way overlapping entity disambiguation.
 Target requires finding a unique scientist+compound+subject combination among
 many partial matches, forcing full-context positional attention.
+CRITICAL FIX: Distractors are shuffled BEFORE target insertion. Target is inserted
+at the exact ratio position and NEVER re-shuffled.
 """
 import logging
 import os
@@ -19,7 +21,7 @@ from src.utils import ensure_dir, save_jsonl, save_json
 
 logger = logging.getLogger(__name__)
 
-# Entity pools — smaller pools = more overlap = harder disambiguation
+# Smaller pools = more overlap = harder disambiguation
 SCIENTISTS = [
     "Dr. Vance", "Dr. Chen", "Dr. Patel", "Dr. Okonkwo", "Dr. Sato",
     "Dr. Müller", "Dr. Silva", "Dr. Kim", "Dr. Ivanov", "Dr. Okafor",
@@ -38,18 +40,17 @@ SUBJECTS = [f"Subject-{i:02d}" for i in range(1, 21)]
 
 
 def _generate_code():
-    """Generate random alphanumeric code."""
-    return f"{random.choice('ABCDEFGHJKLMNPQRSTUVWXYZ')}{random.choice('ABCDEFGHJKLMNPQRSTUVWXYZ')}{random.randint(1000, 9999)}"
+    """Generate random 2-letter + 4-digit code like XJ-7392."""
+    return f"{random.choice('ABCDEFGHJKLMNPQRSTUVWXYZ')}{random.choice('ABCDEFGHJKLMNPQRSTUVWXYZ')}-{random.randint(1000, 9999)}"
 
 
 def _make_research_log(num_events: int, target_scientist: str, target_compound: str,
                        target_subject: str, target_code: str, ratio: float) -> str:
-    """Build research log where target is hidden among many partial matches."""
-    entries = []
+    """Build research log where target is at EXACT depth among partial matches."""
     used_triples = set()
+    entries = []  # List of formatted strings, NOT including target
 
-    # Build pool of unique triples, ensuring overlaps with target entities
-    # We want multiple entries sharing each target entity
+    # Build distractor entries with biased overlap toward target entities
     while len(entries) < num_events - 1:
         s = random.choice(SCIENTISTS)
         c = random.choice(COMPOUNDS)
@@ -59,26 +60,21 @@ def _make_research_log(num_events: int, target_scientist: str, target_compound: 
             continue
         used_triples.add(triple)
 
-        # Bias toward creating partial overlaps with target
-        # This ensures target entities appear frequently
-        if s == target_scientist or c == target_compound or sub == target_subject:
-            if random.random() < 0.7:  # 70% chance to keep overlap entries
-                code = _generate_code()
-                entries.append((s, c, sub, code))
-        else:
-            code = _generate_code()
-            entries.append((s, c, sub, code))
+        code = _generate_code()
+        entries.append(f"Day PLACEHOLDER: {s} tested {c} on {sub}. Result: {code}.")
 
-    # Add target entry
-    entries.insert(int(ratio * len(entries)), (target_scientist, target_compound, target_subject, target_code))
-
-    # Shuffle everything
+    # Shuffle distractors ONLY
     random.shuffle(entries)
 
-    # Format as chronological log
+    # Insert target at exact depth position
+    target_entry = f"Day PLACEHOLDER: {target_scientist} tested {target_compound} on {target_subject}. Result: {target_code}."
+    idx = int(ratio * len(entries))
+    entries.insert(idx, target_entry)
+
+    # Renumber sequentially — now Day N reflects actual position
     lines = []
-    for i, (s, c, sub, code) in enumerate(entries):
-        lines.append(f"Day {i+1}: {s} tested {c} on {sub}. Result: {code}.")
+    for i, entry in enumerate(entries):
+        lines.append(entry.replace("PLACEHOLDER", str(i + 1)))
 
     return "\n".join(lines)
 
@@ -114,7 +110,7 @@ def run_temporal_narrative(
             )
 
             prompt = (
-                f"Below is a chronological research log with {num_events} experiment entries.\n\n"
+                f"Below is a research log with {num_events} experiment entries.\n\n"
                 f"{log}\n\n"
                 f"Question: What was the result code when {target_scientist} tested "
                 f"{target_compound} on {target_subject}? "
