@@ -70,7 +70,7 @@ def main():
          lambda: run_kv_retrieval(model, 200, args.n_examples,
                                    os.path.join(out_root, "exp1b_kv200"), "kv200")),
         ("needle", "Experiment 2: Needle in Haystack",
-         lambda: run_needle_in_haystack(model, 500, 30,
+         lambda: run_needle_in_haystack(model, 2000, 30,
                                         os.path.join(out_root, "exp2_needle"))),
         ("multi", "Experiment 3: Multi-Needle",
          lambda: run_multi_needle(model, 300, 30,
