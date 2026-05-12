@@ -3,6 +3,7 @@
 ================================================================================
 LITM v4 — Kaggle Master Runner (All 7 Experiments)
 Runs all experiments sequentially with progress tracking.
+OPTIMIZED: Exp 2 uses 1000 sentences + 5 decoys for 1.5B model LITM.
 ================================================================================
 """
 import argparse
@@ -70,7 +71,7 @@ def main():
          lambda: run_kv_retrieval(model, 200, args.n_examples,
                                    os.path.join(out_root, "exp1b_kv200"), "kv200")),
         ("needle", "Experiment 2: Needle in Haystack",
-         lambda: run_needle_in_haystack(model, 2000, 30,
+         lambda: run_needle_in_haystack(model, 1000, 30, 5,
                                         os.path.join(out_root, "exp2_needle"))),
         ("multi", "Experiment 3: Multi-Needle",
          lambda: run_multi_needle(model, 300, 30,
