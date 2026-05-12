@@ -3,6 +3,7 @@
 ================================================================================
 LITM v4 — Experiment 2: Needle in Haystack
 Standalone Kaggle-ready script.
+OPTIMIZED: 1000 sentences, 5 same-format decoys for 1.5B model.
 ================================================================================
 """
 import argparse
@@ -26,8 +27,10 @@ def parse_args():
     p = argparse.ArgumentParser(description="LITM v4 - Exp 2: Needle in Haystack")
     p.add_argument("--model", default="Qwen/Qwen2.5-1.5B-Instruct")
     p.add_argument("--n-examples", type=int, default=30)
-    p.add_argument("--n-sentences", type=int, default=2000,
-                   help="Number of sentences in haystack (default 2000 to stress LITM)")
+    p.add_argument("--n-sentences", type=int, default=1000,
+                   help="Number of sentences in haystack (default 1000 for 1.5B LITM)")
+    p.add_argument("--n-decoys", type=int, default=5,
+                   help="Number of same-format decoy codes (default 5)")
     p.add_argument("--output", default="/kaggle/working/litm_results")
     return p.parse_args()
 
@@ -40,7 +43,7 @@ def main():
     logger.info("=" * 60)
     logger.info("LITM v4 - Experiment 2: Needle in Haystack")
     logger.info(f"Model: {args.model}")
-    logger.info(f"Examples: {args.n_examples} | Sentences: {args.n_sentences}")
+    logger.info(f"Examples: {args.n_examples} | Sentences: {args.n_sentences} | Decoys: {args.n_decoys}")
     logger.info(f"Output: {out_dir}")
     logger.info("=" * 60)
 
@@ -48,6 +51,7 @@ def main():
         model_name=args.model,
         num_sentences=args.n_sentences,
         num_examples=args.n_examples,
+        num_decoys=args.n_decoys,
         out_dir=out_dir,
     )
 
