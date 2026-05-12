@@ -29,7 +29,8 @@ experiments:
     positions: 9  # 0%, 12.5%, 25%, 37.5%, 50%, 62.5%, 75%, 87.5%, 100%
 
   needle_haystack:
-    num_sentences: 2000   # FIXED: Increased from 500 to stress LITM on 1.5B model
+    num_sentences: 1000   # OPTIMIZED: Sweet spot for 1.5B model LITM effect
+    num_decoys: 5          # OPTIMIZED: 5 same-format decoys forces positional attention
     n_examples: 30
     depths: [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
 
@@ -53,7 +54,7 @@ experiments:
     depths: [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
 
   conversation_memory:
-    num_turns: 300   # FIXED: Increased from 100 to stress LITM
+    num_turns: 300
     n_examples: 30
     depths: [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0]
 
