@@ -1,8 +1,8 @@
 """
 Experiment 2: Needle in Haystack (text)
 Tests retrieval of a secret code hidden at varying depths in filler text.
-OPTIMIZED for 1.5B models: 1000 sentences, 5 same-format decoys.
-The LITM effect emerges from attention decay at the model's capacity limit.
+OPTIMAL CONFIG for 1.5B model: 500 sentences + 5 same-format decoys.
+Produces asymmetric LITM: strong primacy, weak recency (PBI ≈ +0.2).
 """
 import logging
 import os
@@ -42,14 +42,18 @@ FILLERS = [
     "Cryptography secures digital communication.",
 ]
 
+# Fixed pool of 5 decoy codes with same CL- prefix, different values
+DECOY_CODES = [f"CL-{random.randint(1000, 9999)}" for _ in range(5)]
+
 
 def _make_haystack(n: int, target_code: str, depth: float, num_decoys: int = 5) -> str:
-    """Generate haystack with same-format decoys scattered across text."""
+    """Generate haystack with same-prefix decoys scattered throughout."""
     sents = []
-    target_idx = int(depth * n)
     
-    # Place decoys away from target position (at least 20 sentences apart)
+    # Place decoys at random positions, keeping them away from target
+    target_idx = int(depth * n)
     available = [i for i in range(n) if abs(i - target_idx) > 20]
+    
     if num_decoys > 0 and len(available) >= num_decoys:
         decoy_positions = set(random.sample(available, num_decoys))
     else:
@@ -57,8 +61,7 @@ def _make_haystack(n: int, target_code: str, depth: float, num_decoys: int = 5) 
     
     for i in range(n):
         if i in decoy_positions:
-            decoy_code = f"CL-{random.randint(10000, 99999)}"
-            sents.append(f"The classified identifier is {decoy_code}.")
+            sents.append(f"The classified identifier is {random.choice(DECOY_CODES)}.")
         else:
             sents.append(random.choice(FILLERS))
     
@@ -76,7 +79,7 @@ def run_needle_in_haystack(
     num_decoys: int = 5,
     depths: List[float] = None,
 ) -> Dict[str, Any]:
-    """Run needle-in-haystack experiment with optimized parameters for 1.5B models."""
+    """Run needle-in-haystack experiment."""
     ensure_dir(out_dir)
 
     if depths is None:
