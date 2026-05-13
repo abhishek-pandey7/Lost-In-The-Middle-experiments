@@ -3,7 +3,7 @@
 ================================================================================
 LITM v4 — Experiment 2: Needle in Haystack
 Standalone Kaggle-ready script.
-OPTIMIZED: 1000 sentences, 5 same-format decoys for 1.5B model.
+OPTIMIZED: 500 sentences + 5 same-format decoys for 1.5B model LITM.
 ================================================================================
 """
 import argparse
@@ -27,8 +27,8 @@ def parse_args():
     p = argparse.ArgumentParser(description="LITM v4 - Exp 2: Needle in Haystack")
     p.add_argument("--model", default="Qwen/Qwen2.5-1.5B-Instruct")
     p.add_argument("--n-examples", type=int, default=30)
-    p.add_argument("--n-sentences", type=int, default=1000,
-                   help="Number of sentences in haystack (default 1000 for 1.5B LITM)")
+    p.add_argument("--n-sentences", type=int, default=500,
+                   help="Number of sentences in haystack (default 500 for 1.5B LITM)")
     p.add_argument("--n-decoys", type=int, default=5,
                    help="Number of same-format decoy codes (default 5)")
     p.add_argument("--output", default="/kaggle/working/litm_results")
